@@ -98,9 +98,9 @@ def _Gtensor_covariance(G_tensor,depth=1):
     sigma_G_sqrt_inv = np.einsum('ijl,jl,kjl->ikl',sigma_G_eigenvectors,sigma_G_eigenvalues_sqrt_inv,sigma_G_eigenvectors)
     return sigma_G_sqrt, sigma_G_sqrt_inv
 
-def gl_ADMM_dual_bias_correction(I_hat_all, Xt_tensor, G_tensor, Y, lam, O, bias_correction_method = 'joint', 
-                                 clear_not_select = False, block_mathod='consecutive', tol=1e-8,tol_norm=1e-4, 
-                                 max_iter=1000,varing_rho=True):
+def gl_ADMM_dual_bias_correction(I_hat_all, Xt_tensor, G_tensor, Y, lam, O, wlist='auto', 
+                                 bias_correction_method = 'joint', clear_not_select = False, block_mathod='consecutive', 
+                                 tol=1e-8,tol_norm=1e-4, max_iter=1000,varing_rho=True):
     Xout_debias = Xt_tensor.copy()
     neg_I_hat = np.setdiff1d(np.arange(int(G_tensor.shape[-1]/1)), I_hat_all)
     Xout_debias[neg_I_hat, :] = 0
@@ -109,12 +109,19 @@ def gl_ADMM_dual_bias_correction(I_hat_all, Xt_tensor, G_tensor, Y, lam, O, bias
     S = int(G_tensor.shape[-1])
     T = Y.shape[1]
 
-    sigma_G_sqrt, sigma_G_sqrt_inv = _Gtensor_covariance(G_tensor)
-    G_tilde = np.einsum('ikl, kjl->ijl',G_tensor, sigma_G_sqrt_inv)
-    if clear_not_select:
-        Xt_tilde = np.einsum('ijl, ljk->lik', sigma_G_sqrt, Xout_debias)
+    if wlist == 'auto':
+        sigma_G_sqrt, sigma_G_sqrt_inv = _Gtensor_covariance(G_tensor)
     else:
-        Xt_tilde = np.einsum('ijl, ljk->lik', sigma_G_sqrt, Xt_tensor)
+        sigma_G_sqrt = wlist[0]
+        sigma_G_sqrt_inv = wlist[1]
+    G_tilde = G_tensor.copy()
+    G_tilde[:,:,neg_I_hat] = np.einsum('ikl, kjl->ijl',G_tensor[:,:,neg_I_hat], sigma_G_sqrt_inv[:,:,neg_I_hat])
+    if clear_not_select:
+        Xt_tilde = Xout_debias.copy()
+        Xt_tilde[neg_I_hat,:,:] = np.einsum('ijl, ljk->lik', sigma_G_sqrt[:,:,neg_I_hat], Xout_debias[neg_I_hat,:,:])
+    else:
+        Xt_tilde = Xt_tensor.copy()
+        Xt_tilde[neg_I_hat,:,:] = np.einsum('ijl, ljk->lik', sigma_G_sqrt[:,:,neg_I_hat], Xt_tensor[neg_I_hat,:,:])
     
     if bias_correction_method == 'joint':
         I_hat = I_hat_all
@@ -136,8 +143,8 @@ def gl_ADMM_dual_bias_correction(I_hat_all, Xt_tensor, G_tensor, Y, lam, O, bias
             if debias_flag_idx:
                 significance_list[I_hat] = np.linalg.norm(effect_mat @ X_hat_debias_idx)
 
-    Xout_debias = np.einsum('ijl, ljk->lik', sigma_G_sqrt_inv, Xout_debias)
-    Xout_debias_rotate = np.einsum('ijl, ljk->lik', sigma_G_sqrt_inv, Xout_debias_rotate)
+    # Xout_debias = np.einsum('ijl, ljk->lik', sigma_G_sqrt_inv, Xout_debias)
+    # Xout_debias_rotate = np.einsum('ijl, ljk->lik', sigma_G_sqrt_inv, Xout_debias_rotate)
     if block_mathod == 'jump':
         Xout_debias = np.reshape(Xout_debias, (S*O,T), order='F')
         Xout_debias_rotate = np.reshape(Xout_debias_rotate, (S*O,T), order='F')

@@ -217,7 +217,7 @@ for sim_num in range(10):
 
                     # use LCMV as prior, which may be regarded as a soft thresholded sure independence screening 
                     filters = mne.beamformer.make_lcmv(evoked.info, fwd, cov_all, pick_ori="vector",
-                                                       noise_cov=cov,
+                                                       #noise_cov=cov,
                                                        rank=None,depth=1,verbose=False)
                     stc = mne.beamformer.apply_lcmv(evoked, filters,verbose=False)
                     wlist1d = np.linalg.norm(stc.data, axis = (1,2))
@@ -231,7 +231,7 @@ for sim_num in range(10):
                         # calculate estimated X without bias correction
                         Xout, lamt, sigma_list = \
                             gl_ADMM_dual_joint(10,X0,G_mat,Y_mat,lambda_i,O,wlist = wlist,block_mathod='consecutive',
-                                               tol = 1e-7,tol_norm=1e-7,max_iter = 4000, varing_rho = True)
+                                               tol = 1e-5,tol_norm=1e-5,max_iter = 4000, varing_rho = True)
                         # I_hat is the estimated active source locations
                         I_hat, G_tensor, Xt_tensor = _cal_I_hat(Xout, G_mat, O, block_mathod='consecutive')
                         estnum = I_hat.shape[0]
@@ -248,7 +248,7 @@ for sim_num in range(10):
 
                         # calculate the debiased X with set A been I_hat
                         Xout_debias, Xout_debias_rotate, significance_list = \
-                            gl_ADMM_dual_bias_correction(I_hat, Xt_tensor, G_tensor, Y_mat, lambda_i*100, O, 
+                            gl_ADMM_dual_bias_correction(I_hat, Xt_tensor, G_tensor, Y_mat, lambda_i*100, O,wlist = wlist, 
                                                          bias_correction_method = 'joint', clear_not_select=True,
                                                          block_mathod='consecutive', tol = 1e-5,tol_norm=1e-5,
                                                          max_iter = 4000,
@@ -296,10 +296,9 @@ for sim_num in range(10):
                         Xt_tensor = Xt_tensor / Y_mat_adj * G_mat_adj
                         Xout_debias, Xout_debias_rotate, significance_list = \
                             gl_ADMM_dual_bias_correction(estimated_locs_raw, Xt_tensor, G_tensor, Y_mat, lambda_i*100, 
-                                                            O, bias_correction_method = 'joint', clear_not_select=True,
-                                                            block_mathod='consecutive', tol = 1e-5,tol_norm=1e-5,
-                                                            max_iter = 4000,
-                                                            varing_rho=True)
+                                                         O,wlist = wlist, bias_correction_method = 'joint', 
+                                                         clear_not_select=True, block_mathod='consecutive', tol = 1e-5,
+                                                         tol_norm=1e-5, max_iter = 4000, varing_rho=True)
                         Xout_debias = Xout_debias * Y_mat_adj / G_mat_adj
                         Xout_debias = Xout_debias.reshape((S,O,T))
                         # calculate statistics for the debiased X
