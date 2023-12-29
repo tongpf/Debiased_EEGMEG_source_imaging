@@ -4,7 +4,7 @@ import math
 import scipy
 
 def gl_ADMM_dual_joint(joint_est_num, X0, G, Y, lam, O, wlist=None, 
-                       block_mathod='consecutive', tol=1e-8, max_iter=1000, varing_rho=False):
+                       block_mathod='consecutive', tol=1e-8,tol_norm=1e-4, max_iter=1000, varing_rho=False):
     N = G.shape[0]
     S = int(G.shape[1]/O)
     T = Y.shape[1]
@@ -26,7 +26,7 @@ def gl_ADMM_dual_joint(joint_est_num, X0, G, Y, lam, O, wlist=None,
     for _ in range(joint_est_num):
         lam_use = lam_new*(math.sqrt(O*T))*math.sqrt(T*N)
         Xt = gl_ADMM_dual(Xt,G,Y,lam_use,O,wlist,block_mathod=block_mathod,
-                          tol = tol,max_iter = max_iter,varing_rho=varing_rho)
+                          tol = tol,tol_norm=tol_norm,max_iter = max_iter,varing_rho=varing_rho)
         sigma_hat = np.linalg.norm(Y - np.dot(G, Xt)) / math.sqrt(N*T)
         lam_new = lam * sigma_hat
 
@@ -98,8 +98,9 @@ def _Gtensor_covariance(G_tensor,depth=1):
     sigma_G_sqrt_inv = np.einsum('ijl,jl,kjl->ikl',sigma_G_eigenvectors,sigma_G_eigenvalues_sqrt_inv,sigma_G_eigenvectors)
     return sigma_G_sqrt, sigma_G_sqrt_inv
 
-def gl_ADMM_dual_bias_correction(I_hat_all, Xt_tensor, G_tensor, Y, lam, O, bias_correction_method = 'joint', clear_not_select = False,
-                       block_mathod='consecutive', tol=1e-8, max_iter=1000,varing_rho=True):
+def gl_ADMM_dual_bias_correction(I_hat_all, Xt_tensor, G_tensor, Y, lam, O, bias_correction_method = 'joint', 
+                                 clear_not_select = False, block_mathod='consecutive', tol=1e-8,tol_norm=1e-4, 
+                                 max_iter=1000,varing_rho=True):
     Xout_debias = Xt_tensor.copy()
     neg_I_hat = np.setdiff1d(np.arange(int(G_tensor.shape[-1]/1)), I_hat_all)
     Xout_debias[neg_I_hat, :] = 0
@@ -117,8 +118,9 @@ def gl_ADMM_dual_bias_correction(I_hat_all, Xt_tensor, G_tensor, Y, lam, O, bias
     
     if bias_correction_method == 'joint':
         I_hat = I_hat_all
-        X_hat_debias_idx, X_hat_debias_rotate_idx, debias_flag_idx, effect_mat = _gl_ADMM_dual_bias_correction(I_hat, Xt_tilde, G_tilde, Y, lam, O,
-                       tol=tol, max_iter=max_iter,varing_rho=varing_rho)
+        X_hat_debias_idx, X_hat_debias_rotate_idx, debias_flag_idx, effect_mat = \
+            _gl_ADMM_dual_bias_correction(I_hat, Xt_tilde, G_tilde, Y, lam, O, 
+                                          tol=tol,tol_norm=tol_norm, max_iter=max_iter,varing_rho=varing_rho)
         Xout_debias[I_hat, :] = np.reshape(X_hat_debias_idx.copy(), (I_hat.shape[0], O, T))
         Xout_debias_rotate[I_hat, :] = np.reshape(X_hat_debias_rotate_idx.copy(), (I_hat.shape[0], O, T))
         if debias_flag_idx:
@@ -126,8 +128,9 @@ def gl_ADMM_dual_bias_correction(I_hat_all, Xt_tensor, G_tensor, Y, lam, O, bias
     elif bias_correction_method == 'seperate':
         for I_hat in I_hat_all:
             I_hat = np.array([I_hat])
-            X_hat_debias_idx, X_hat_debias_rotate_idx, debias_flag_idx, effect_mat = _gl_ADMM_dual_bias_correction(I_hat, Xt_tilde, G_tilde, Y, lam, O,
-                       tol=tol, max_iter=max_iter,varing_rho=varing_rho)
+            X_hat_debias_idx, X_hat_debias_rotate_idx, debias_flag_idx, effect_mat = \
+                _gl_ADMM_dual_bias_correction(I_hat, Xt_tilde, G_tilde, Y, lam, O, 
+                                              tol=tol,tol_norm=tol_norm, max_iter=max_iter,varing_rho=varing_rho)
             Xout_debias[I_hat, :] = np.reshape(X_hat_debias_idx.copy(), (I_hat.shape[0], O, T))
             Xout_debias_rotate[I_hat, :] = np.reshape(X_hat_debias_rotate_idx.copy(), (I_hat.shape[0], O, T))
             if debias_flag_idx:
@@ -144,7 +147,7 @@ def gl_ADMM_dual_bias_correction(I_hat_all, Xt_tensor, G_tensor, Y, lam, O, bias
     return Xout_debias, Xout_debias_rotate, significance_list
 
 def _gl_ADMM_dual_bias_correction(I_hat, Xt_tilde, G_tilde, Y, lam, O,
-                       tol=1e-8, max_iter=1000,varing_rho=True):
+                       tol=1e-8, tol_norm=1e-4, max_iter=1000,varing_rho=True):
     N = G_tilde.shape[0]
     S = int(G_tilde.shape[-1])
     T = Y.shape[1]
@@ -166,10 +169,9 @@ def _gl_ADMM_dual_bias_correction(I_hat, Xt_tilde, G_tilde, Y, lam, O,
 
         lam_res = lam*(math.sqrt((I_hat.shape[0]+1)*O)+math.sqrt(2*math.log(S)))
         Bt = gl_ADMM_dual(B0,G_neg_I_flat,G_I_flat,lam_res,O,wlist=None,block_mathod='consecutive',
-                                                    tol = tol,max_iter = max_iter,varing_rho=varing_rho)
+                          tol = tol, tol_norm=tol_norm,max_iter = max_iter, varing_rho=varing_rho)
         Z_I = G_I_flat - np.dot(G_neg_I_flat, Bt)
         P_proj = Z_I @ np.linalg.inv(Z_I.T @ Z_I) @ Z_I.T
-        #P_proj = Z_I @ np.linalg.pinv(Z_I.T @ Z_I) @ Z_I.T
         effect_mat = P_proj @ G_I_flat
 
         if np.linalg.matrix_rank(effect_mat) == effect_mat.shape[1]:
@@ -196,8 +198,8 @@ def _gl_ADMM_dual_bias_correction(I_hat, Xt_tilde, G_tilde, Y, lam, O,
 
     return X_hat_debias, X_hat_debias_rotate, debias_flag, effect_mat
 
-def gl_ADMM_dual(X0, G, Y, lam, O, wlist=None, block_mathod='consecutive', 
-                 tol=1e-8, max_iter=1000, varing_rho=True):
+def gl_ADMM_dual(X0, G, Y, lam, O, wlist='auto', block_mathod='consecutive', 
+                 tol=1e-8, tol_norm=1e-4, max_iter=1000, varing_rho=True):
     # Initialize
     N = G.shape[0]
     S = int(G.shape[1]/O)
@@ -222,9 +224,10 @@ def gl_ADMM_dual(X0, G, Y, lam, O, wlist=None, block_mathod='consecutive',
     # stepsize0 = math.sqrt(N*S*O)/np.linalg.norm(GGT, 2)
     # stepsize0 = 1/np.linalg.norm(GGT, 2)
     # stepsize0 = math.sqrt(N*S*O)/np.linalg.norm(GGT)
-    stepsize0 = math.sqrt(N)/np.linalg.norm(GGT)
-    max_stepsize_tol = stepsize0.copy()*math.sqrt(S*O)
-    min_stepsize_tol = stepsize0.copy()/math.sqrt(S*O)
+    # stepsize0 = math.sqrt(N)/np.linalg.norm(GGT)
+    stepsize0 = np.array(1/S/O)
+    max_stepsize_tol = stepsize0.copy()*math.sqrt(N*S*O)
+    min_stepsize_tol = stepsize0.copy()/math.sqrt(N*S*O)
     stepsize = stepsize0.copy()
     coreinv = np.linalg.inv(np.eye(N)+stepsize*GGT)
     coreinvG = np.dot(coreinv, G_tilde)
@@ -270,10 +273,10 @@ def gl_ADMM_dual(X0, G, Y, lam, O, wlist=None, block_mathod='consecutive',
         loss_p = np.linalg.norm(GTZ-Ut)
         loss_d = np.linalg.norm(stepsize*G_tilde@(Ut-Utpre))
 
-        tol_p = tolsqrtSOT + 1e-4*max(np.linalg.norm(GTZ), np.linalg.norm(Ut))
-        tol_d = tolsqrtNT + 1e-4*np.linalg.norm(GX)
+        tol_p = tolsqrtSOT + tol_norm*max(np.linalg.norm(GTZ), np.linalg.norm(Ut))
+        tol_d = tolsqrtNT + tol_norm*np.linalg.norm(GX)
 
-        if varing_rho and iter_idx < max_iter/4:
+        if varing_rho and iter_idx < max_iter/10:
             if loss_d/sqrtNT > 10*loss_p/sqrtSOT:
                 stepsize = max(stepsize/2,min_stepsize_tol)
                 coreinv = np.linalg.inv(np.eye(N)+stepsize*GGT)
