@@ -138,6 +138,7 @@ for sim_num in range(10):
             Y = raw._data[:, T:].copy()
 
             # generate epochs
+            # our AR process has no intercept, thus the mean of the data is zero
             epochs = mne.Epochs(raw, np.array([[0,0,0]]), event_id={'signal start':0}, baseline=None,
                 tmin=-0, tmax=1.99, preload=True)
 
@@ -248,7 +249,7 @@ for sim_num in range(10):
 
                         # calculate the debiased X with set A been I_hat
                         Xout_debias, Xout_debias_rotate, significance_list = \
-                            gl_ADMM_dual_bias_correction(I_hat, Xt_tensor, G_tensor, Y_mat, lambda_i*100, O,wlist = wlist, 
+                            gl_ADMM_dual_bias_correction(I_hat, Xt_tensor, G_tensor, Y_mat, lambda_i*100, O,wlist = 'auto', 
                                                          bias_correction_method = 'joint', clear_not_select=True,
                                                          block_mathod='consecutive', tol = 1e-5,tol_norm=1e-5,
                                                          max_iter = 4000,
@@ -296,7 +297,7 @@ for sim_num in range(10):
                         Xt_tensor = Xt_tensor / Y_mat_adj * G_mat_adj
                         Xout_debias, Xout_debias_rotate, significance_list = \
                             gl_ADMM_dual_bias_correction(estimated_locs_raw, Xt_tensor, G_tensor, Y_mat, lambda_i*100, 
-                                                         O,wlist = wlist, bias_correction_method = 'joint', 
+                                                         O,wlist = 'auto', bias_correction_method = 'joint', 
                                                          clear_not_select=True, block_mathod='consecutive', tol = 1e-5,
                                                          tol_norm=1e-5, max_iter = 4000, varing_rho=True)
                         Xout_debias = Xout_debias * Y_mat_adj / G_mat_adj
