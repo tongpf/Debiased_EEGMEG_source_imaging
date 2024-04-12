@@ -56,7 +56,7 @@ def _Xmatrix_to_tensor(X, O, block_mathod='consecutive'):
         X_tensor = np.reshape(X.copy(), (S, O, T))
     return X_tensor
 
-def _cal_I_hat(Xt, G, O, block_mathod='consecutive', threshold=1e-3):
+def _cal_I_hat(Xt, G, O, block_mathod='consecutive', threshold=0):
     """
     Calculate the index of non-zero sources
     Reshape the data into tensor format
@@ -243,7 +243,17 @@ def gl_ADMM_dual(X0, G, Y, lam, O, wlist='auto', block_mathod='consecutive',
 
     Xt = np.einsum('ijl, ljk->lik', sigma_G_sqrt, X0_tensor)
     Xt = np.reshape(Xt, (S*O, T))
-    Zt = Y - np.dot(G_tilde, Xt)
+
+    #Xt = scipy.sparse.csr_matrix(Xt)
+    #Xt_all_zero = np.zeros((S*O, T))
+    #Xt_all_zero = scipy.sparse.csr_matrix((S*O, T))
+    utnorm = np.linalg.norm(Xt, axis=1)
+    utmask = utnorm > 0
+    Xt = Xt[utmask, :]
+
+    Zt = Y - G_tilde[:,utmask] @ Xt#scipy.sparse.csr_matrix.dot(G_tilde, Xt)
+    #Xt = Xt.toarray()
+
     Ut = np.dot(G_tilde.T, Zt)
     loss_p = math.inf
     loss_d = math.inf
@@ -260,22 +270,35 @@ def gl_ADMM_dual(X0, G, Y, lam, O, wlist='auto', block_mathod='consecutive',
 
     while iter_idx < max_iter and (loss_p>tol_p or loss_d>tol_d):
         # Update Z
-        Zt = coreinvY+np.dot(coreinvG,(-Xt+stepsize*Ut))
+        mXtpUt = stepsize*Ut
+        mXtpUt[utmask, :] = mXtpUt[utmask, :] - Xt
+        Zt = coreinvY+np.dot(coreinvG,mXtpUt)
+        #Zt = coreinvY+np.dot(coreinvG,(-Xt+stepsize*Ut))
         GTZ = np.dot(G_tilde.T, Zt)
         # Update U
         Utpre = Ut.copy()
-        Ut = GTZ + Xt/stepsize
+        Ut = GTZ.copy()
+        Ut[utmask, :] = GTZ[utmask, :] + Xt/stepsize
         if O == 1:
             utnorm = np.linalg.norm(Ut, axis=1)
         else:
             Utreshape = Ut.reshape((S,O,T))
             utnorm = np.linalg.norm(Utreshape, axis=(1,2))
             utnorm = np.repeat(utnorm, O)
-        utmask = utnorm > lam
-        Ut[utmask, :] = lam*Ut[utmask, :]/utnorm[utmask][:, None]
+        utmasknew = utnorm > lam
+        Ut[utmasknew, :] = lam*Ut[utmasknew, :]/utnorm[utmasknew][:, None]
         # Update X
-        Xt = Xt + fastcoeff*stepsize*(GTZ-Ut)
-        GX = np.dot(G_tilde, Xt)
+        Xtt = fastcoeff*stepsize*(GTZ[utmasknew, :]-Ut[utmasknew, :])
+        utmask_and_utmasknew = np.logical_and(utmask, utmasknew)
+        Xtt[utmask_and_utmasknew[utmasknew], :] = Xt[utmask_and_utmasknew[utmask], :] + Xtt[utmask_and_utmasknew[utmasknew], :]
+        Xt = Xtt.copy()
+        utmask = utmasknew.copy()
+        #set_row_csr(Xtt, utmask, Xt[utmask, :] + fastcoeff*stepsize*(GTZ[utmask, :]-Ut[utmask, :]))
+        #Xtt[utmask, :] = Xt[utmask, :] + fastcoeff*stepsize*(GTZ[utmask, :]-Ut[utmask, :])
+        #Xt[~utmask, :] = 0
+
+        GX = G_tilde[:,utmask] @ Xt#scipy.sparse.csr_matrix.dot(G_tilde, Xtt)
+        #Xt = Xtt.toarray()
 
         loss_p = np.linalg.norm(GTZ-Ut)
         loss_d = np.linalg.norm(stepsize*G_tilde@(Ut-Utpre))
@@ -299,6 +322,9 @@ def gl_ADMM_dual(X0, G, Y, lam, O, wlist='auto', block_mathod='consecutive',
         if iter_idx % 200 == 0:
             print('iter_idx = ', iter_idx, 'loss_p = ', loss_p, 'loss_d = ',loss_d, 'lam = ', lam, 'stepsize = ', stepsize)
     
+    Xtt = np.zeros((S*O, T))
+    Xtt[utmask, :] = Xt
+    Xt = Xtt
     Xt_tensor = _Xmatrix_to_tensor(Xt, O, block_mathod=block_mathod)
     Xout = np.einsum('ijl, ljk->lik', sigma_G_sqrt_inv, Xt_tensor)
 
