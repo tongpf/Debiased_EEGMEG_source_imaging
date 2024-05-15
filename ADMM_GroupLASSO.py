@@ -24,7 +24,8 @@ def gl_ADMM_dual_joint(joint_est_num, X0, G, Y, lam, O, wlist=None,
     sigma_hat_pre = math.inf
     
     for _ in range(joint_est_num):
-        lam_use = lam_new*(math.sqrt(O*T))*math.sqrt(T*N)
+        #lam_use = lam_new*(math.sqrt(O*T))*math.sqrt(T*N) #lambda propto T*sqrt(NO)
+        lam_use = lam_new*(math.sqrt(T)) #lambda propto sqrt(T), it seems that lambda may depend on N
         Xt = gl_ADMM_dual(Xt,G,Y,lam_use,O,wlist,block_mathod=block_mathod,
                           tol = tol,tol_norm=tol_norm,max_iter = max_iter,varing_rho=varing_rho)
         sigma_hat = np.linalg.norm(Y - np.dot(G, Xt)) / math.sqrt(N*T)
@@ -103,9 +104,7 @@ def gl_ADMM_dual_bias_correction(I_hat_all, Xt_tensor, G_tensor, Y, lam, O, wlis
                                  tol=1e-8,tol_norm=1e-4, max_iter=1000,varing_rho=True):
     Xout_debias = Xt_tensor.copy()
     neg_I_hat = np.setdiff1d(np.arange(int(G_tensor.shape[-1]/1)), I_hat_all)
-    Xout_debias[neg_I_hat, :] = 0
-    Xout_debias_rotate = Xout_debias.copy()
-    significance_list = np.zeros((int(G_tensor.shape[-1]/1)))
+    significance_list = np.zeros((int(G_tensor.shape[-1]/1))) # the p-value
     S = int(G_tensor.shape[-1])
     T = Y.shape[1]
 
@@ -115,11 +114,17 @@ def gl_ADMM_dual_bias_correction(I_hat_all, Xt_tensor, G_tensor, Y, lam, O, wlis
         sigma_G_sqrt = wlist[0]
         sigma_G_sqrt_inv = wlist[1]
     G_tilde = G_tensor.copy()
-    G_tilde[:,:,neg_I_hat] = np.einsum('ikl, kjl->ijl',G_tensor[:,:,neg_I_hat], sigma_G_sqrt_inv[:,:,neg_I_hat])
+    G_tilde[:,:,neg_I_hat] = np.einsum('ikl, kjl->ijl',G_tensor[:,:,neg_I_hat], 
+                                       sigma_G_sqrt_inv[:,:,neg_I_hat]) # only the G_{,neg_I_hat} need to be whitened
+
     if clear_not_select:
+        Xout_debias[neg_I_hat, :] = 0
+        Xout_debias_rotate = Xout_debias.copy()
         Xt_tilde = Xout_debias.copy()
         Xt_tilde[neg_I_hat,:,:] = np.einsum('ijl, ljk->lik', sigma_G_sqrt[:,:,neg_I_hat], Xout_debias[neg_I_hat,:,:])
     else:
+        Xout_debias_rotate = Xout_debias.copy()
+        Xout_debias_rotate[neg_I_hat, :] = 0
         Xt_tilde = Xt_tensor.copy()
         Xt_tilde[neg_I_hat,:,:] = np.einsum('ijl, ljk->lik', sigma_G_sqrt[:,:,neg_I_hat], Xt_tensor[neg_I_hat,:,:])
     
@@ -128,10 +133,12 @@ def gl_ADMM_dual_bias_correction(I_hat_all, Xt_tensor, G_tensor, Y, lam, O, wlis
         X_hat_debias_idx, X_hat_debias_rotate_idx, debias_flag_idx, effect_mat = \
             _gl_ADMM_dual_bias_correction(I_hat, Xt_tilde, G_tilde, Y, lam, O, 
                                           tol=tol,tol_norm=tol_norm, max_iter=max_iter,varing_rho=varing_rho)
-        Xout_debias[I_hat, :] = np.reshape(X_hat_debias_idx.copy(), (I_hat.shape[0], O, T))
+        Xout_debias[I_hat, :, :] = np.reshape(X_hat_debias_idx.copy(), (I_hat.shape[0], O, T))
         Xout_debias_rotate[I_hat, :] = np.reshape(X_hat_debias_rotate_idx.copy(), (I_hat.shape[0], O, T))
         if debias_flag_idx:
-            significance_list[I_hat] = np.linalg.norm(effect_mat @ X_hat_debias_idx)
+            effect_mat = _Gmatrix_to_tensor(effect_mat, O)
+            significance_list[I_hat] = np.linalg.norm(np.einsum('ijl, ljk->lik', effect_mat, Xout_debias[I_hat, :, :]),axis=(1,2))
+            #np.linalg.norm(effect_mat @ X_hat_debias_idx)
     elif bias_correction_method == 'seperate':
         for I_hat in I_hat_all:
             I_hat = np.array([I_hat])
@@ -159,7 +166,7 @@ def _gl_ADMM_dual_bias_correction(I_hat, Xt_tilde, G_tilde, Y, lam, O,
     S = int(G_tilde.shape[-1])
     T = Y.shape[1]
 
-    if I_hat.shape[0] > 0 and I_hat.shape[0] < N:
+    if I_hat.shape[0] > 0 and I_hat.shape[0] < N/O:
         debias_flag = True
         neg_I_hat = np.setdiff1d(np.arange(S), I_hat)
         G_I = G_tilde[:, :, I_hat]
@@ -174,9 +181,11 @@ def _gl_ADMM_dual_bias_correction(I_hat, Xt_tilde, G_tilde, Y, lam, O,
     if debias_flag:
         B0 = np.zeros(((S-I_hat.shape[0])*O, I_hat.shape[0]*O))
 
-        lam_res = lam*(math.sqrt((I_hat.shape[0]+1)*O)+math.sqrt(2*math.log(S)))
+        lam_res = lam*(math.sqrt((I_hat.shape[0]+1)*O)+math.sqrt(2*math.log(S))) # sqrt((A+1)*O)+sqrt(2*log(S)), silimar to sqrt(T)+sqrt(2*log(S))
         Bt = gl_ADMM_dual(B0,G_neg_I_flat,G_I_flat,lam_res,O,wlist=None,block_mathod='consecutive',
                           tol = tol, tol_norm=tol_norm,max_iter = max_iter, varing_rho=varing_rho)
+        if (Bt==0).all():
+            print('The penalty parameter is too large, the debiasing procedure is equivalent to the OLS regression.')
         Z_I = G_I_flat - np.dot(G_neg_I_flat, Bt)
         P_proj = Z_I @ np.linalg.inv(Z_I.T @ Z_I) @ Z_I.T
         effect_mat = P_proj @ G_I_flat
@@ -185,11 +194,16 @@ def _gl_ADMM_dual_bias_correction(I_hat, Xt_tilde, G_tilde, Y, lam, O,
             midterm = P_proj @ (Y - np.dot(G_neg_I_flat, X_neg_I_flat))
             effect_mat_inv = scipy.linalg.pinv(effect_mat)
             X_hat_debias = effect_mat_inv @ midterm
+            # import statsmodels.api as sm
+            # OLSmodel = sm.OLS(Y, G_I_flat)
+            # OLSresult = OLSmodel.fit()
+            # print(OLSresult.tvalues)
             debias_var = effect_mat_inv @ P_proj @ effect_mat_inv.T
             debias_var_inv_square = np.diag(debias_var)
             debias_var_inv_square = np.diag(1/np.sqrt(debias_var_inv_square))
             X_hat_debias_rotate = debias_var_inv_square @ X_hat_debias
         else:
+            print('The Q_A*G_A is not full rank, the debiasing is not performed.')
             X_I = Xt_tilde[I_hat, :, :]
             X_I_flat = np.reshape(X_I, (I_hat.shape[0]*O, T))
             debias_flag = False
@@ -343,7 +357,7 @@ if __name__ == '__main__':
     O = 3 # number of orientations
     T = 100 # number of time points
     k = 3 # number of non-zero sources
-    lam = 0.3 # regularization parameter
+    lam = 75 #0.3 * math.sqrt(3*100*256) # regularization parameter
     #O_org = 'jump'
     O_org = 'consecutive'
 

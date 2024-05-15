@@ -71,9 +71,8 @@ def cal_statistcs(est_sig, I_hat, fwd, true_loc, cal_rsquared = False,
         Xtrue_sel = Xtrue[sel_true_loc,:,:]
         Xres = Xhat - Xtrue_sel
         rsquared_X1 = 1 - np.linalg.norm(Xres)**2 / SST_Xtrue[sel_true_loc]
-        source_id_list_full = np.concatenate([np.arange(start*O, start*O+O, dtype = 'int') for start in I_hat])
-
-        Yhat = np.dot(G_true_demean[:,source_id_list_full], est_sig[I_hat,:,:].reshape(I_hat.shape[0]*O,T))
+        
+        Yhat = np.dot(G_true_demean, est_sig.reshape(S*O,T))
         Yres = Yhat - Y_true_demean
         rsquared_Y = 1 - np.linalg.norm(Yres)**2 / SST_Y
 
