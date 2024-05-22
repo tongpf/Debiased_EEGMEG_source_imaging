@@ -15,7 +15,7 @@ from data_utils import AR_series, cal_statistcs
 
 # Set MNE data directory.
 print(mne.get_config())
-mne.set_config("SUBJECTS_DIR", "C:/Users/tongp/mne_data")
+#mne.set_config("SUBJECTS_DIR", "your path to the subjects directory")
 
 # Download fsaverage files
 fs_dir = fetch_fsaverage(verbose=True)
@@ -234,7 +234,7 @@ for sim_num in range(10):
 
                     X0 = np.zeros((S*O, 2*T))
 
-                    for lambda_i in [1000,400,300,200,100,75,50,30,20,10,5]:
+                    for lambda_i in [200,100,75,50,35,25,20,15,10]:
                         # calculate estimated X without bias correction
                         Xout, lamt, sigma_list = \
                             gl_ADMM_dual_joint(10,X0,G_mat,Y_mat,lambda_i,O,wlist = wlist,block_mathod='consecutive',
