@@ -30,6 +30,10 @@ def triangle(length, amplitude):
 
 def cal_statistcs(est_sig, I_hat, fwd, true_loc, cal_rsquared = False,
                   Xtrue=None, SST_Xtrue=None, Y_true_demean=None, SST_Y=None, G_true_demean=None):
+    # This function is designed to calculate the most significant sources separately in two hemispheres, which matches
+    # the data generation process as listed in Table II of the paper.
+    # If the sources were generated sequentially with no guarantee of the hemisphere, then the function cal_statistcs_TableIII
+    # should be used.
     S = est_sig.shape[0]
     O = est_sig.shape[1]
     T = est_sig.shape[2]
@@ -81,3 +85,88 @@ def cal_statistcs(est_sig, I_hat, fwd, true_loc, cal_rsquared = False,
         Xres = Xhat - Xtrue_sel
         rsquared_X2 = 1 - np.linalg.norm(Xres)**2 / SST_Xtrue[not_sel_true_loc]
     return true_distance, rsquared_X1, rsquared_X2, rsquared_Y, estimated_locs
+
+
+def cal_statistcs_TableIII(est_sig, I_hat, fwd, true_loc, dipole_num=2, cal_rsquared = False,
+                  Xtrue=None, SST_Xtrue=None, Y_true_demean=None, SST_Y=None, G_true_demean=None):
+    # This function is designed to calculate the most significant sources sequentially, where any two adjacent sources
+    # are separated by several distance. The number of sources is determined by dipole_num. 
+    # This matches the data generation process as listed in Table III of the paper.
+    S = est_sig.shape[0]
+    O = est_sig.shape[1]
+    T = est_sig.shape[2]
+    est_sig_norm = np.linalg.norm(est_sig, axis = (1,2))
+
+    maxsig = est_sig_norm[I_hat]
+    peak_ix1_idx = maxsig.argmax()
+    peak_ix1 = I_hat[peak_ix1_idx]
+    est_loc = np.array([fwd['source_rr'][peak_ix1,:]])
+
+    source_distances = distance.cdist(est_loc, true_loc, 'euclidean')[0,:]*1e3
+    sel_loc1 = source_distances.argmin()
+    true_distance1 = source_distances[sel_loc1]
+    source_locs_all = fwd['source_rr']
+
+    if dipole_num == 1:
+        true_distance = true_distance1
+        estimated_locs = np.array([peak_ix1])
+    else:
+        rm_locs1 = distance.cdist(est_loc, source_locs_all, 'euclidean')[0,:]*1e3
+        rm_locs1 = np.where(rm_locs1 <= 20)[0]
+        est_sig_norm[rm_locs1] = 0
+        maxsig = est_sig_norm[I_hat]
+        peak_ix2_idx = maxsig.argmax()
+        peak_ix2 = I_hat[peak_ix2_idx]
+        est_loc = np.array([fwd['source_rr'][peak_ix2,:]])
+
+        source_distances = distance.cdist(est_loc, true_loc, 'euclidean')[0,:]*1e3
+        source_distances[sel_loc1] = np.inf
+        sel_loc2 = source_distances.argmin()
+        true_distance2 = source_distances[sel_loc2]
+        if dipole_num == 2:
+            true_distance = (true_distance1 + true_distance2) / 2
+            estimated_locs = np.array([peak_ix1, peak_ix2])
+        else:
+            rm_locs2 = distance.cdist(est_loc, source_locs_all, 'euclidean')[0,:]*1e3
+            rm_locs2 = np.where(rm_locs2 <= 20)[0]
+            est_sig_norm[rm_locs2] = 0
+            maxsig = est_sig_norm[I_hat]
+            peak_ix3_idx = maxsig.argmax()
+            peak_ix3 = I_hat[peak_ix3_idx]
+            est_loc = np.array([fwd['source_rr'][peak_ix3,:]])
+
+            source_distances = distance.cdist(est_loc, true_loc, 'euclidean')[0,:]*1e3
+            source_distances[sel_loc1] = np.inf
+            source_distances[sel_loc2] = np.inf
+            sel_loc3 = source_distances.argmin()
+            true_distance3 = source_distances[sel_loc3]
+            true_distance = (true_distance1 + true_distance2 + true_distance3) / 3
+            estimated_locs = np.array([peak_ix1, peak_ix2, peak_ix3])
+
+    rsquared_Y = np.nan
+    rsquared_X1 = np.nan
+    rsquared_X2 = np.nan
+    rsquared_X3 = np.nan
+    if cal_rsquared:
+        Xhat = est_sig[peak_ix1,:,:]
+        Xtrue_sel = Xtrue[0,:,:]
+        Xres = Xhat - Xtrue_sel
+        rsquared_X1 = 1 - np.linalg.norm(Xres)**2 / SST_Xtrue[0]
+        
+        Yhat = np.dot(G_true_demean, est_sig.reshape(S*O,T))
+        Yres = Yhat - Y_true_demean
+        rsquared_Y = 1 - np.linalg.norm(Yres)**2 / SST_Y
+
+        if dipole_num > 1:
+            Xhat = est_sig[peak_ix2,:,:]
+            Xtrue_sel = Xtrue[1,:,:]
+            Xres = Xhat - Xtrue_sel
+            rsquared_X2 = 1 - np.linalg.norm(Xres)**2 / SST_Xtrue[1]
+
+            if dipole_num > 2:
+                Xhat = est_sig[peak_ix3,:,:]
+                Xtrue_sel = Xtrue[2,:,:]
+                Xres = Xhat - Xtrue_sel
+                rsquared_X3 = 1 - np.linalg.norm(Xres)**2 / SST_Xtrue[2]
+
+    return true_distance, rsquared_X1, rsquared_X2, rsquared_X3, rsquared_Y, estimated_locs

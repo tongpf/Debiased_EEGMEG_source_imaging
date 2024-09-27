@@ -316,7 +316,6 @@ for sim_num in range(10):
 
                         # calculate the debiased X with set A been estimated_locs_raw, 
                         # the most significant locations in the uncorrected X
-                        #Xt_tensor = Xt_tensor / Y_mat_adj * G_mat_adj
                         Xout_debias, Xout_debias_rotate, significance_list = \
                             gl_ADMM_dual_bias_correction(estimated_locs_raw, Xt_tensor, G_tensor, Y_mat, lambda_i, 
                                                          O,wlist = 'auto', bias_correction_method = 'joint', 
@@ -336,5 +335,3 @@ for sim_num in range(10):
                             print('row_num = %d' % row_num)
                 
             result_pd.to_csv('simulation.csv') # save the results after each simulation
-
-
