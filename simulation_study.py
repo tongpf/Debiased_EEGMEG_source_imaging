@@ -11,7 +11,7 @@ import mne
 from mne.datasets import fetch_fsaverage
 from ADMM_GroupLASSO import gl_ADMM_dual_joint, _cal_I_hat, gl_ADMM_dual_bias_correction, _Gmatrix_to_tensor, \
     _Gtensor_covariance
-from data_utils import AR_series, cal_statistcs
+from data_utils import AR_series, cal_statistics
 
 # Set MNE data directory.
 print(mne.get_config())
@@ -271,7 +271,7 @@ for sim_num in range(10):
 
                         # calculate statistics for the uncorrected X
                         true_distance, rsquared_X1, rsquared_X2, rsquared_Y, estimated_locs_raw = \
-                            cal_statistcs(Xt_tensor, I_hat, fwd, true_loc, cal_rsquared = True, Xtrue=Xtrue, 
+                            cal_statistics(Xt_tensor, I_hat, fwd, true_loc, cal_rsquared = True, Xtrue=Xtrue, 
                                           SST_Xtrue=SST_Xtrue, Y_true_demean=Y_true_demean, SST_Y=SST_Y, 
                                           G_true_demean=G_true_demean)
                         result_pd.loc[row_num] = [sim_num, 'DeESI_raw', lambda_i, snr_n, snr_s, true_distance, 
@@ -282,7 +282,7 @@ for sim_num in range(10):
                         
                         # calculate statistics for the debiased X
                         true_distance, rsquared_X1, rsquared_X2, rsquared_Y, estimated_locs = \
-                            cal_statistcs(Xout_debias, I_hat, fwd, true_loc, cal_rsquared = True, Xtrue=Xtrue, 
+                            cal_statistics(Xout_debias, I_hat, fwd, true_loc, cal_rsquared = True, Xtrue=Xtrue, 
                                           SST_Xtrue=SST_Xtrue, Y_true_demean=Y_true_demean, SST_Y=SST_Y, 
                                           G_true_demean=G_true_demean)
                         result_pd.loc[row_num] = [sim_num, 'DeESI_debias', lambda_i, snr_n, snr_s, true_distance, 
@@ -293,7 +293,7 @@ for sim_num in range(10):
 
                         # calculate statistics for the signifiance based location estimate
                         true_distance, rsquared_X1, rsquared_X2, rsquared_Y, estimated_locs = \
-                            cal_statistcs(Xout_debias_rotate, I_hat, fwd, true_loc, cal_rsquared = False)
+                            cal_statistics(Xout_debias_rotate, I_hat, fwd, true_loc, cal_rsquared = False)
                         estimated_locs.sort()
                         Xt_tensor = Xt_tensor / Y_mat_adj * G_mat_adj
                         Xout_debias, Xout_debias_rotate, significance_list = \
@@ -305,7 +305,7 @@ for sim_num in range(10):
                         Xout_debias = Xout_debias.reshape((S,O,2*T))
 
                         true_distance, rsquared_X1, rsquared_X2, rsquared_Y, estimated_locs = \
-                            cal_statistcs(Xout_debias, estimated_locs, fwd, true_loc, cal_rsquared = True, Xtrue=Xtrue, 
+                            cal_statistics(Xout_debias, estimated_locs, fwd, true_loc, cal_rsquared = True, Xtrue=Xtrue, 
                                           SST_Xtrue=SST_Xtrue, Y_true_demean=Y_true_demean, SST_Y=SST_Y, 
                                           G_true_demean=G_true_demean)
                         result_pd.loc[row_num] = [sim_num, 'DeESI_std', lambda_i, snr_n, snr_s, true_distance, 
@@ -325,7 +325,7 @@ for sim_num in range(10):
                         Xout_debias = Xout_debias.reshape((S,O,2*T))
                         # calculate statistics for the debiased X
                         true_distance, rsquared_X1, rsquared_X2, rsquared_Y, estimated_locs = \
-                            cal_statistcs(Xout_debias, estimated_locs_raw, fwd, true_loc, cal_rsquared = True, 
+                            cal_statistics(Xout_debias, estimated_locs_raw, fwd, true_loc, cal_rsquared = True, 
                                           Xtrue=Xtrue, SST_Xtrue=SST_Xtrue, Y_true_demean=Y_true_demean, SST_Y=SST_Y, 
                                           G_true_demean=G_true_demean)
                         result_pd.loc[row_num] = [sim_num, 'DeESI_rawselected_debias', lambda_i, snr_n, snr_s, 
