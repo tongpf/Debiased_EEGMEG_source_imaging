@@ -28,11 +28,11 @@ def triangle(length, amplitude):
         for i in range(section):
             yield (amplitude - (i * (amplitude / section))) * direction
 
-def cal_statistcs(est_sig, I_hat, fwd, true_loc, cal_rsquared = False,
+def cal_statistics(est_sig, I_hat, fwd, true_loc, cal_rsquared = False,
                   Xtrue=None, SST_Xtrue=None, Y_true_demean=None, SST_Y=None, G_true_demean=None):
     # This function is designed to calculate the most significant sources separately in two hemispheres, which matches
     # the data generation process as listed in Table II of the paper.
-    # If the sources were generated sequentially with no guarantee of the hemisphere, then the function cal_statistcs_TableIII
+    # If the sources were generated sequentially with no guarantee of the hemisphere, then the function cal_statistics_TableIII
     # should be used.
     S = est_sig.shape[0]
     O = est_sig.shape[1]
@@ -87,7 +87,7 @@ def cal_statistcs(est_sig, I_hat, fwd, true_loc, cal_rsquared = False,
     return true_distance, rsquared_X1, rsquared_X2, rsquared_Y, estimated_locs
 
 
-def cal_statistcs_TableIII(est_sig, I_hat, fwd, true_loc, dipole_num=2, cal_rsquared = False,
+def cal_statistics_TableIII(est_sig, I_hat, fwd, true_loc, dipole_num=2, cal_rsquared = False,
                   Xtrue=None, SST_Xtrue=None, Y_true_demean=None, SST_Y=None, G_true_demean=None):
     # This function is designed to calculate the most significant sources sequentially, where any two adjacent sources
     # are separated by several distance. The number of sources is determined by dipole_num. 
