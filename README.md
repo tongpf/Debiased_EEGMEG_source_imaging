@@ -1,6 +1,6 @@
 # Debiased EEG/MEG source imaging
 
-This repo contains the python source code for the unpublished paper "Debiased Estimation and Inference for Spatial-Temporal EEG/MEG Source Imaging" in IEEE TMI, 2024.
+This repo contains the python source code for the published paper "Debiased Estimation and Inference for Spatial-Temporal EEG/MEG Source Imaging" in ([IEEE TMI, 2025](https://ieeexplore.ieee.org/document/10768920)).
 
 The development of accurate electroencephalography (EEG) and magnetoencephalography (MEG) source imaging algorithm is of great importance for functional brain research and non-invasive presurgical evaluation of epilepsy. In practice, the challenge arises from the fact that the number of measurement channels is far less than the number of candidate source locations, rendering the inverse problem ill-posed. A widely used approach is to introduce a regularization term into the objective function, which inevitably biased the estimated amplitudes towards zero, leading to an inaccurate estimation of the estimator's variance.
 
